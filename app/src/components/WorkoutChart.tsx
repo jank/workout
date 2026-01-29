@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useRef, useEffect } from 'react';
 import {
   ComposedChart,
   Line,
@@ -23,11 +23,24 @@ interface Track {
   title: string;
   startTime: number;
   endTime: number;
+  durationMs: number;
+  trackNumber: number;
+  scaledStart?: number;
+  scaledEnd?: number;
+}
+
+export interface ActiveTrackInfo {
+  title: string;
+  trackNumber: number;
+  scaledStart: number;
+  scaledEnd: number;
+  progress: number;
 }
 
 interface WorkoutChartProps {
   data: ChartPoint[];
   tracks: Track[];
+  onActiveTrackChange?: (track: ActiveTrackInfo | null) => void;
 }
 
 type LeftAxisMetric = 'watts' | 'pace';
@@ -44,14 +57,85 @@ const formatPace = (seconds: number) => {
   return `${mins}:${secs.toString().padStart(2, '0')}`;
 };
 
-export default function WorkoutChart({ data, tracks }: WorkoutChartProps) {
-  const [hoveredTrack, setHoveredTrack] = useState<Track | null>(null);
-  const [leftAxisMetric, setLeftAxisMetric] = useState<LeftAxisMetric>('watts');
+// Colors for alternating track segments
+const TRACK_COLORS = [
+  'rgb(64, 64, 64)',
+  'rgb(82, 82, 82)',
+];
 
-  // Filter data to reduce point count for performance if needed
+export default function WorkoutChart({ data, tracks, onActiveTrackChange }: WorkoutChartProps) {
+  const [activeTime, setActiveTime] = useState<number | null>(null);
+  const [selectedTrackIndex, setSelectedTrackIndex] = useState<number | null>(null);
+  const [leftAxisMetric, setLeftAxisMetric] = useState<LeftAxisMetric>('watts');
+  const pendingTimeRef = useRef<number | null>(null);
+
+  // Update activeTime from ref after render to avoid setState during render
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (pendingTimeRef.current !== activeTime) {
+        setActiveTime(pendingTimeRef.current);
+      }
+    }, 50);
+    return () => clearInterval(interval);
+  }, [activeTime]);
+
   const optimizedData = useMemo(() => {
     return data.filter((_, i) => i % 5 === 0);
   }, [data]);
+
+  const workoutDuration = data.length > 0 ? data[data.length - 1].t : 0;
+  const albumDuration = tracks.length > 0 ? tracks[tracks.length - 1].endTime : 0;
+
+  const scaledTracks = useMemo(() => {
+    if (albumDuration === 0) return tracks;
+    const scale = workoutDuration / albumDuration;
+    return tracks.map(track => ({
+      ...track,
+      scaledStart: track.startTime * scale,
+      scaledEnd: track.endTime * scale,
+    }));
+  }, [tracks, workoutDuration, albumDuration]);
+
+  // Track from hovering over chart
+  const hoveredTrack = useMemo(() => {
+    if (activeTime === null) return null;
+    return scaledTracks.find(
+      track => track.scaledStart !== undefined &&
+               track.scaledEnd !== undefined &&
+               activeTime >= track.scaledStart &&
+               activeTime < track.scaledEnd
+    ) || null;
+  }, [activeTime, scaledTracks]);
+
+  // Selected track from clicking timeline
+  const selectedTrack = selectedTrackIndex !== null ? scaledTracks[selectedTrackIndex] : null;
+
+  // Active track is selected track if any, otherwise hovered track
+  const activeTrack = selectedTrack || hoveredTrack;
+
+  // Calculate progress through current track
+  const trackProgress = useMemo(() => {
+    if (!activeTrack || activeTime === null || !activeTrack.scaledStart || !activeTrack.scaledEnd) return 0;
+    const trackDuration = activeTrack.scaledEnd - activeTrack.scaledStart;
+    return ((activeTime - activeTrack.scaledStart) / trackDuration) * 100;
+  }, [activeTrack, activeTime]);
+
+  // Notify parent of active track changes
+  useEffect(() => {
+    if (onActiveTrackChange) {
+      if (activeTrack && activeTrack.scaledStart !== undefined && activeTrack.scaledEnd !== undefined) {
+        onActiveTrackChange({
+          title: activeTrack.title,
+          trackNumber: activeTrack.trackNumber,
+          scaledStart: activeTrack.scaledStart,
+          scaledEnd: activeTrack.scaledEnd,
+          progress: trackProgress,
+        });
+      } else {
+        onActiveTrackChange(null);
+      }
+    }
+  }, [activeTrack, trackProgress, onActiveTrackChange]);
 
   const leftAxisConfig = {
     watts: {
@@ -64,19 +148,19 @@ export default function WorkoutChart({ data, tracks }: WorkoutChartProps) {
     },
     pace: {
       dataKey: 'p',
-      stroke: 'var(--neon-purple)',
+      stroke: 'var(--neon-amber)',
       label: 'Pace /500m',
       domain: undefined as [string, string] | undefined,
       tickFormatter: (v: number) => formatPace(v),
-      reversed: true // Lower pace is better, so reverse axis
+      reversed: true
     }
   };
 
   const currentConfig = leftAxisConfig[leftAxisMetric];
 
   return (
-    <div className="w-full h-[500px] flex flex-col gap-4">
-      {/* Controls */}
+    <div className="w-full flex flex-col gap-4">
+      {/* Controls Row */}
       <div className="flex items-center gap-4">
         <span className="text-xs text-neutral-500 uppercase">Left Axis:</span>
         <div className="flex gap-1">
@@ -94,7 +178,7 @@ export default function WorkoutChart({ data, tracks }: WorkoutChartProps) {
             onClick={() => setLeftAxisMetric('pace')}
             className={`px-3 py-1 text-xs rounded transition-colors ${
               leftAxisMetric === 'pace'
-                ? 'bg-[var(--neon-purple)] text-black font-semibold'
+                ? 'bg-[var(--neon-amber)] text-black font-semibold'
                 : 'bg-neutral-800 text-neutral-400 hover:bg-neutral-700'
             }`}
           >
@@ -103,37 +187,14 @@ export default function WorkoutChart({ data, tracks }: WorkoutChartProps) {
         </div>
       </div>
 
-      {/* Music Timeline */}
-      <div className="flex w-full h-12 gap-[1px] bg-neutral-900 rounded overflow-hidden">
-        {tracks.map((track, i) => {
-          const totalDuration = tracks[tracks.length - 1].endTime;
-          const widthPct = ((track.endTime - track.startTime) / totalDuration) * 100;
-          const isHovered = hoveredTrack?.title === track.title;
-
-          return (
-            <div
-              key={i}
-              className={`h-full relative group cursor-pointer transition-all duration-300 ${
-                isHovered ? 'bg-[var(--neon-purple)]' : 'bg-neutral-800 hover:bg-neutral-700'
-              }`}
-              style={{ width: `${widthPct}%` }}
-              onMouseEnter={() => setHoveredTrack(track)}
-              onMouseLeave={() => setHoveredTrack(null)}
-            >
-              <div className="absolute inset-0 flex items-center justify-center overflow-hidden">
-                 <span className="text-[10px] whitespace-nowrap px-1 truncate text-neutral-400 group-hover:text-black">
-                   {track.title}
-                 </span>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
       {/* Main Chart */}
-      <div className="flex-1 w-full min-h-0">
+      <div className="h-[400px] w-full">
         <ResponsiveContainer width="100%" height="100%">
-          <ComposedChart data={optimizedData}>
+          <ComposedChart
+            data={optimizedData}
+            margin={{ left: 0, right: 0, top: 10, bottom: 0 }}
+            onMouseLeave={() => { pendingTimeRef.current = null; setActiveTime(null); }}
+          >
             <defs>
               <linearGradient id="colorWatts" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="5%" stopColor="var(--neon-blue)" stopOpacity={0.3}/>
@@ -148,8 +209,6 @@ export default function WorkoutChart({ data, tracks }: WorkoutChartProps) {
               tick={{fontSize: 12}}
               minTickGap={60}
             />
-
-            {/* Left Axis: Watts or Pace */}
             <YAxis
               yAxisId="left"
               stroke={currentConfig.stroke}
@@ -158,8 +217,6 @@ export default function WorkoutChart({ data, tracks }: WorkoutChartProps) {
               tickFormatter={currentConfig.tickFormatter}
               reversed={currentConfig.reversed}
             />
-
-            {/* Right Axis: HR */}
             <YAxis
               yAxisId="right"
               orientation="right"
@@ -167,10 +224,12 @@ export default function WorkoutChart({ data, tracks }: WorkoutChartProps) {
               domain={['dataMin - 10', 'dataMax + 10']}
               label={{ value: 'HR', angle: 90, position: 'insideRight', fill: '#666' }}
             />
-
             <Tooltip
               contentStyle={{ backgroundColor: '#111', borderColor: '#333' }}
-              labelFormatter={(label) => formatTime(label as number)}
+              labelFormatter={(label) => {
+                pendingTimeRef.current = label as number;
+                return formatTime(label as number);
+              }}
               formatter={(value, name) => {
                 const v = value as number;
                 if (name === 'p') return [formatPace(v), 'Pace'];
@@ -180,18 +239,18 @@ export default function WorkoutChart({ data, tracks }: WorkoutChartProps) {
               }}
             />
 
-            {/* Song Highlight Area */}
-            {hoveredTrack && (
+            {/* Highlight selected track area */}
+            {selectedTrack && selectedTrack.scaledStart !== undefined && selectedTrack.scaledEnd !== undefined && (
               <ReferenceArea
                 yAxisId="left"
-                x1={hoveredTrack.startTime}
-                x2={hoveredTrack.endTime}
-                strokeOpacity={0.3}
-                fill="var(--neon-purple)"
-                fillOpacity={0.1}
+                x1={selectedTrack.scaledStart}
+                x2={selectedTrack.scaledEnd}
+                fill="#FF9F1C"
+                fillOpacity={0.2}
+                stroke="#FF9F1C"
+                strokeWidth={1}
               />
             )}
-
             <Line
               yAxisId="left"
               type="monotone"
@@ -214,6 +273,45 @@ export default function WorkoutChart({ data, tracks }: WorkoutChartProps) {
             />
           </ComposedChart>
         </ResponsiveContainer>
+      </div>
+
+      {/* Song Timeline - aligned with chart */}
+      <div className="w-full" style={{ marginLeft: '65px', marginRight: '65px', width: 'calc(100% - 130px)' }}>
+        <div className="flex h-6 rounded overflow-hidden">
+          {scaledTracks.map((track, i) => {
+            const widthPct = ((track.scaledEnd! - track.scaledStart!) / workoutDuration) * 100;
+            const isSelected = selectedTrackIndex === i;
+            const isHovered = hoveredTrack?.title === track.title;
+            const isHighlighted = isSelected || isHovered;
+
+            return (
+              <div
+                key={i}
+                onClick={() => setSelectedTrackIndex(isSelected ? null : i)}
+                className={`relative h-full cursor-pointer transition-all duration-150 ${
+                  isSelected ? 'ring-2 ring-[var(--neon-amber)] ring-inset' : ''
+                }`}
+                style={{
+                  width: `${widthPct}%`,
+                  backgroundColor: isHighlighted ? 'var(--neon-amber)' : TRACK_COLORS[i % 2],
+                }}
+                title={`${track.trackNumber}. ${track.title}`}
+              >
+                {/* Track number indicator */}
+                <span className={`absolute inset-0 flex items-center justify-center text-[9px] font-medium ${
+                  isHighlighted ? 'text-black' : 'text-neutral-500'
+                }`}>
+                  {widthPct > 3 ? track.trackNumber : ''}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+        {/* Time markers */}
+        <div className="flex justify-between mt-1">
+          <span className="text-[10px] text-neutral-600">0:00</span>
+          <span className="text-[10px] text-neutral-600">{formatTime(workoutDuration)}</span>
+        </div>
       </div>
     </div>
   );
