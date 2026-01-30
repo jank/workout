@@ -42,7 +42,7 @@ export interface ActiveTrackInfo {
 interface WorkoutChartProps {
   data: ChartPoint[];
   tracks: Track[];
-  collectionId?: number;
+  collectionViewUrl?: string;
   onActiveTrackChange?: (track: ActiveTrackInfo | null) => void;
 }
 
@@ -66,7 +66,7 @@ const TRACK_COLORS = [
   'rgb(82, 82, 82)',
 ];
 
-export default function WorkoutChart({ data, tracks, collectionId, onActiveTrackChange }: WorkoutChartProps) {
+export default function WorkoutChart({ data, tracks, collectionViewUrl, onActiveTrackChange }: WorkoutChartProps) {
   const [activeTime, setActiveTime] = useState<number | null>(null);
   const [hoveredTimelineIndex, setHoveredTimelineIndex] = useState<number | null>(null);
   const [leftAxisMetric, setLeftAxisMetric] = useState<LeftAxisMetric>('watts');
@@ -143,9 +143,8 @@ export default function WorkoutChart({ data, tracks, collectionId, onActiveTrack
 
   // Handle chart click to open Apple Music
   const handleChartClick = () => {
-    if (hoveredTrack && collectionId && hoveredTrack.trackId) {
-      const url = `https://music.apple.com/de/album/${collectionId}?i=${hoveredTrack.trackId}`;
-      window.open(url, '_blank');
+    if (hoveredTrack && collectionViewUrl && hoveredTrack.trackId) {
+      window.open(`${collectionViewUrl}?i=${hoveredTrack.trackId}`, '_blank');
     }
   };
 
@@ -301,9 +300,8 @@ export default function WorkoutChart({ data, tracks, collectionId, onActiveTrack
             const isHovered = hoveredTimelineIndex === i || hoveredTrack?.title === track.title;
 
             const handleClick = () => {
-              if (collectionId && track.trackId) {
-                const url = `https://music.apple.com/de/album/${collectionId}?i=${track.trackId}`;
-                window.open(url, '_blank');
+              if (collectionViewUrl && track.trackId) {
+                window.open(`${collectionViewUrl}?i=${track.trackId}`, '_blank');
               }
             };
 

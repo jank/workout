@@ -21,6 +21,7 @@ export interface Track {
   title: string;
   durationMs: number;
   trackNumber: number;
+  trackId: number;
   previewUrl: string | null;
   startTime: number;
   endTime: number;
@@ -31,6 +32,7 @@ export interface AlbumMeta {
   artist: string;
   coverUrl: string;
   collectionId?: number;
+  collectionViewUrl?: string;
 }
 
 export interface AlbumData {

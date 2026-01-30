@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import WorkoutChart, { ActiveTrackInfo } from '@/components/WorkoutChart';
 import Link from 'next/link';
 import { ChevronLeft } from 'lucide-react';
@@ -16,8 +16,35 @@ const formatTime = (seconds: number) => {
   return `${mins}:${secs.toString().padStart(2, '0')}`;
 };
 
+const formatDate = (dateStr: string) => {
+  const d = new Date(dateStr);
+  const day = d.getDate().toString().padStart(2, '0');
+  const month = (d.getMonth() + 1).toString().padStart(2, '0');
+  const year = d.getFullYear();
+  return `${day}.${month}.${year}`;
+};
+
 export default function WorkoutDetailClient({ workout }: WorkoutDetailClientProps) {
   const [activeTrack, setActiveTrack] = useState<ActiveTrackInfo | null>(null);
+  const trackRefs = useRef<Map<number, HTMLDivElement>>(new Map());
+  const listContainerRef = useRef<HTMLDivElement>(null);
+
+  // Auto-scroll to active track within the list container only
+  useEffect(() => {
+    if (activeTrack && listContainerRef.current) {
+      const trackEl = trackRefs.current.get(activeTrack.trackNumber);
+      const container = listContainerRef.current;
+      if (trackEl) {
+        const containerRect = container.getBoundingClientRect();
+        const trackRect = trackEl.getBoundingClientRect();
+        const containerHeight = container.clientHeight;
+        const trackOffsetInContainer = trackRect.top - containerRect.top + container.scrollTop;
+        const targetScroll = trackOffsetInContainer - (containerHeight / 2) + (trackRect.height / 2);
+        container.scrollTo({ top: Math.max(0, targetScroll), behavior: 'smooth' });
+      }
+    }
+  }, [activeTrack?.trackNumber]);
+
   // Zip chart data back to array of objects
   const chartData = workout.charts.time.map((t: number, i: number) => ({
     t,
@@ -45,19 +72,29 @@ export default function WorkoutDetailClient({ workout }: WorkoutDetailClientProp
 
       <main className="flex-1 flex flex-col p-6 md:p-12 gap-8 max-w-[1600px] mx-auto w-full">
         <div className="flex flex-col md:flex-row gap-8 items-start">
-            <div className="w-32 h-32 md:w-48 md:h-48 shrink-0 rounded-lg overflow-hidden shadow-2xl shadow-[var(--neon-blue)]/10">
-                <img 
-                    src={workout.album.meta.coverUrl} 
-                    alt="Album Cover" 
-                    className="w-full h-full object-cover"
+            <a
+              href={workout.album.meta.collectionViewUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="block w-32 h-32 md:w-48 md:h-48 shrink-0 rounded-lg overflow-hidden shadow-2xl shadow-[var(--neon-blue)]/10 group relative"
+            >
+                <img
+                    src={workout.album.meta.coverUrl}
+                    alt="Album Cover"
+                    className="w-full h-full object-cover transition-transform group-hover:scale-105"
                 />
-            </div>
+                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center">
+                  <span className="text-white opacity-0 group-hover:opacity-100 transition-opacity text-sm font-medium">
+                    Play on Apple Music
+                  </span>
+                </div>
+            </a>
 
             <div className="flex-1 w-full">
                 <div className="mb-6">
                     <h1 className="text-3xl font-bold mb-1">{workout.album.meta.artist}</h1>
                     <h2 className="text-xl text-neutral-400">{workout.album.meta.title}</h2>
-                    <p className="text-sm text-neutral-500 mt-1 font-mono">{new Date(workout.summary.date).toLocaleDateString()}</p>
+                    <p className="text-sm text-neutral-500 mt-1 font-mono">{formatDate(workout.summary.date)}</p>
                 </div>
 
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -82,47 +119,70 @@ export default function WorkoutDetailClient({ workout }: WorkoutDetailClientProp
         </div>
 
         <div className="w-full bg-neutral-900/50 p-6 rounded-xl border border-neutral-800 flex-1 min-h-[500px]">
-            {/* Header row with title and now playing */}
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="text-sm font-bold text-neutral-500 uppercase tracking-widest">Performance & Rhythm</h3>
+            <h3 className="text-sm font-bold text-neutral-500 uppercase tracking-widest mb-6">Performance & Rhythm</h3>
 
-              {/* Now Playing Panel - fixed width to prevent layout shift */}
-              <div className="w-[420px]">
-                {activeTrack ? (
-                  <div className="bg-neutral-800/50 rounded-lg px-4 py-2 border border-neutral-700">
-                    <div className="flex items-center gap-3">
-                      <div className="w-7 h-7 rounded bg-[var(--neon-amber)] flex items-center justify-center text-black font-bold text-xs shrink-0">
-                        {activeTrack.trackNumber}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-white truncate">{activeTrack.title}</p>
-                        <div className="flex items-center gap-2">
-                          <div className="flex-1 h-1 bg-neutral-700 rounded-full overflow-hidden">
-                            <div
-                              className="h-full bg-[var(--neon-amber)]"
-                              style={{ width: `${activeTrack.progress}%` }}
-                            />
-                          </div>
-                          <span className="text-[10px] text-neutral-500 tabular-nums">
-                            {formatTime(activeTrack.scaledStart)} – {formatTime(activeTrack.scaledEnd)}
-                          </span>
+            <div className="flex gap-6">
+              {/* Song List - Left Side */}
+              <div
+                ref={listContainerRef}
+                className="w-[420px] shrink-0 flex flex-col gap-1 h-[500px] overflow-y-scroll pr-2 relative"
+              >
+                {workout.album.tracks.map((track) => {
+                  const isActive = activeTrack?.trackNumber === track.trackNumber;
+                  return (
+                    <div
+                      key={track.trackNumber}
+                      ref={(el) => {
+                        if (el) trackRefs.current.set(track.trackNumber, el);
+                      }}
+                      className={`rounded-lg px-3 py-2 border transition-colors ${
+                        isActive
+                          ? 'bg-neutral-800/50 border-neutral-700'
+                          : 'bg-transparent border-transparent'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className={`w-6 h-6 rounded flex items-center justify-center text-xs font-bold shrink-0 ${
+                          isActive
+                            ? 'bg-[var(--neon-amber)] text-black'
+                            : 'bg-neutral-800 text-neutral-500'
+                        }`}>
+                          {track.trackNumber}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className={`text-sm truncate ${isActive ? 'text-white font-medium' : 'text-neutral-400'}`}>
+                            {track.title}
+                          </p>
+                          {isActive && activeTrack && (
+                            <div className="flex items-center gap-2 mt-1">
+                              <div className="flex-1 h-1 bg-neutral-700 rounded-full overflow-hidden">
+                                <div
+                                  className="h-full bg-[var(--neon-amber)]"
+                                  style={{ width: `${activeTrack.progress}%` }}
+                                />
+                              </div>
+                              <span className="text-[10px] text-neutral-500 tabular-nums">
+                                {formatTime(activeTrack.scaledStart)} – {formatTime(activeTrack.scaledEnd)}
+                              </span>
+                            </div>
+                          )}
                         </div>
                       </div>
                     </div>
-                  </div>
-                ) : (
-                  <div className="bg-neutral-800/30 rounded-lg px-4 py-2 border border-neutral-800/50 h-[52px] flex items-center justify-center">
-                    <p className="text-xs text-neutral-600 text-center">Hover over chart to see track</p>
-                  </div>
-                )}
+                  );
+                })}
+              </div>
+
+              {/* Chart - Right Side */}
+              <div className="flex-1 min-w-0">
+                <WorkoutChart
+                  data={chartData}
+                  tracks={workout.album.tracks}
+                  collectionViewUrl={workout.album.meta.collectionViewUrl}
+                  onActiveTrackChange={setActiveTrack}
+                />
               </div>
             </div>
-
-            <WorkoutChart
-              data={chartData}
-              tracks={workout.album.tracks}
-              onActiveTrackChange={setActiveTrack}
-            />
         </div>
       </main>
     </div>

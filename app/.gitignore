@@ -43,3 +43,6 @@ next-env.d.ts
 # generated data (build artifacts)
 src/data/generated-workouts.json
 data/cache/
+
+# test output
+test-results/
