@@ -1,0 +1,13 @@
+[build]
+  base = "app"
+  command = "npm run build"
+  publish = "out"
+
+[build.environment]
+  NODE_VERSION = "20"
+
+# Handle client-side routing for SPA-style navigation
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

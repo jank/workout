@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from 'react';
 import WorkoutChart, { ActiveTrackInfo } from '@/components/WorkoutChart';
 import Link from 'next/link';
-import { ChevronLeft } from 'lucide-react';
+import { ChevronLeft, ExternalLink } from 'lucide-react';
 import type { GeneratedWorkout } from '../../../../scripts/lib/types';
 
 interface WorkoutDetailClientProps {
@@ -26,7 +26,7 @@ const formatDate = (dateStr: string) => {
 
 export default function WorkoutDetailClient({ workout }: WorkoutDetailClientProps) {
   const [activeTrack, setActiveTrack] = useState<ActiveTrackInfo | null>(null);
-  const trackRefs = useRef<Map<number, HTMLDivElement>>(new Map());
+  const trackRefs = useRef<Map<number, HTMLAnchorElement>>(new Map());
   const listContainerRef = useRef<HTMLDivElement>(null);
 
   // Auto-scroll to active track within the list container only
@@ -83,9 +83,10 @@ export default function WorkoutDetailClient({ workout }: WorkoutDetailClientProp
                     alt="Album Cover"
                     className="w-full h-full object-cover transition-transform group-hover:scale-105"
                 />
-                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center">
+                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/50 transition-colors flex flex-col items-center justify-center gap-2">
+                  <ExternalLink className="text-white opacity-0 group-hover:opacity-100 transition-opacity" size={24} />
                   <span className="text-white opacity-0 group-hover:opacity-100 transition-opacity text-sm font-medium">
-                    Play on Apple Music
+                    Open in Apple Music
                   </span>
                 </div>
             </a>
@@ -129,28 +130,34 @@ export default function WorkoutDetailClient({ workout }: WorkoutDetailClientProp
               >
                 {workout.album.tracks.map((track) => {
                   const isActive = activeTrack?.trackNumber === track.trackNumber;
+                  const trackUrl = workout.album.meta.collectionViewUrl
+                    ? `${workout.album.meta.collectionViewUrl}?i=${track.trackId}`
+                    : undefined;
                   return (
-                    <div
+                    <a
                       key={track.trackNumber}
+                      href={trackUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
                       ref={(el) => {
                         if (el) trackRefs.current.set(track.trackNumber, el);
                       }}
-                      className={`rounded-lg px-3 py-2 border transition-colors ${
+                      className={`group rounded-lg px-3 py-2 border transition-colors cursor-pointer ${
                         isActive
-                          ? 'bg-neutral-800/50 border-neutral-700'
-                          : 'bg-transparent border-transparent'
+                          ? 'bg-neutral-800/50 border-neutral-700 hover:border-[var(--neon-amber)]/50'
+                          : 'bg-transparent border-transparent hover:bg-neutral-800/30 hover:border-neutral-700/50'
                       }`}
                     >
                       <div className="flex items-center gap-3">
-                        <div className={`w-6 h-6 rounded flex items-center justify-center text-xs font-bold shrink-0 ${
+                        <div className={`w-6 h-6 rounded flex items-center justify-center text-xs font-bold shrink-0 transition-colors ${
                           isActive
                             ? 'bg-[var(--neon-amber)] text-black'
-                            : 'bg-neutral-800 text-neutral-500'
+                            : 'bg-neutral-800 text-neutral-500 group-hover:bg-neutral-700 group-hover:text-neutral-300'
                         }`}>
                           {track.trackNumber}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className={`text-sm truncate ${isActive ? 'text-white font-medium' : 'text-neutral-400'}`}>
+                          <p className={`text-sm truncate transition-colors ${isActive ? 'text-white font-medium' : 'text-neutral-400 group-hover:text-neutral-200'}`}>
                             {track.title}
                           </p>
                           {isActive && activeTrack && (
@@ -167,8 +174,12 @@ export default function WorkoutDetailClient({ workout }: WorkoutDetailClientProp
                             </div>
                           )}
                         </div>
+                        <ExternalLink
+                          size={14}
+                          className="shrink-0 text-neutral-600 opacity-0 group-hover:opacity-100 transition-opacity"
+                        />
                       </div>
-                    </div>
+                    </a>
                   );
                 })}
               </div>

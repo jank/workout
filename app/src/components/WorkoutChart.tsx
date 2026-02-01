@@ -67,10 +67,16 @@ const TRACK_COLORS = [
 ];
 
 export default function WorkoutChart({ data, tracks, collectionViewUrl, onActiveTrackChange }: WorkoutChartProps) {
+  const [mounted, setMounted] = useState(false);
   const [activeTime, setActiveTime] = useState<number | null>(null);
   const [hoveredTimelineIndex, setHoveredTimelineIndex] = useState<number | null>(null);
   const [leftAxisMetric, setLeftAxisMetric] = useState<LeftAxisMetric>('watts');
   const pendingTimeRef = useRef<number | null>(null);
+
+  // Only render chart after client-side mount to avoid SSG dimension warnings
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // Update activeTime from ref after render to avoid setState during render
   useEffect(() => {
@@ -151,7 +157,7 @@ export default function WorkoutChart({ data, tracks, collectionViewUrl, onActive
   const leftAxisConfig = {
     watts: {
       dataKey: 'w',
-      stroke: 'var(--neon-blue)',
+      stroke: 'var(--neon-green)',
       label: 'Watts',
       domain: undefined as [string, string] | undefined,
       tickFormatter: (v: number) => `${v}`,
@@ -179,7 +185,7 @@ export default function WorkoutChart({ data, tracks, collectionViewUrl, onActive
             onClick={() => setLeftAxisMetric('watts')}
             className={`px-3 py-1 text-xs rounded transition-colors ${
               leftAxisMetric === 'watts'
-                ? 'bg-[var(--neon-blue)] text-black font-semibold'
+                ? 'bg-[var(--neon-green)] text-black font-semibold'
                 : 'bg-neutral-800 text-neutral-400 hover:bg-neutral-700'
             }`}
           >
@@ -200,7 +206,7 @@ export default function WorkoutChart({ data, tracks, collectionViewUrl, onActive
 
       {/* Main Chart */}
       <div className="h-[400px] w-full outline-none" tabIndex={-1}>
-        <ResponsiveContainer width="100%" height="100%">
+        {mounted && <ResponsiveContainer width="100%" height="100%">
           <ComposedChart
             data={optimizedData}
             margin={{ left: 0, right: 0, top: 10, bottom: 0 }}
@@ -210,8 +216,8 @@ export default function WorkoutChart({ data, tracks, collectionViewUrl, onActive
           >
             <defs>
               <linearGradient id="colorWatts" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="var(--neon-blue)" stopOpacity={0.3}/>
-                <stop offset="95%" stopColor="var(--neon-blue)" stopOpacity={0}/>
+                <stop offset="5%" stopColor="var(--neon-green)" stopOpacity={0.3}/>
+                <stop offset="95%" stopColor="var(--neon-green)" stopOpacity={0}/>
               </linearGradient>
             </defs>
             <CartesianGrid strokeDasharray="3 3" stroke="#333" vertical={false} />
@@ -285,7 +291,7 @@ export default function WorkoutChart({ data, tracks, collectionViewUrl, onActive
               animationDuration={500}
             />
           </ComposedChart>
-        </ResponsiveContainer>
+        </ResponsiveContainer>}
       </div>
 
       {/* Song Timeline - aligned with chart */}

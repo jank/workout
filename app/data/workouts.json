@@ -3,9 +3,18 @@
     "id": "2026-01-12-row",
     "tcxFile": "concept2-workout-111125705.tcx",
     "music": {
-      "artist": "Rage Against the Machine",
-      "album": "The Battle of Mexico City",
-      "itunesCollectionId": 1536376019
+      "artist": "Rage against the Machine",
+      "album": "Rage Against the Machine",
+      "itunesCollectionId": 191450810
+    }
+  },
+  {
+    "id": "2026-01-09-row",
+    "tcxFile": "concept2-workout-110973407.tcx",
+    "music": {
+      "artist": "Public Enemy",
+      "album": "it takes a nation of millions to hold us back",
+      "itunesCollectionId": 1440837788
     }
   }
 ]
