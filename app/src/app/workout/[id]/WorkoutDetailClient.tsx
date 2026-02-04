@@ -122,11 +122,11 @@ export default function WorkoutDetailClient({ workout }: WorkoutDetailClientProp
         <div className="w-full bg-neutral-900/50 p-6 rounded-xl border border-neutral-800 flex-1 min-h-[500px]">
             <h3 className="text-sm font-bold text-neutral-500 uppercase tracking-widest mb-6">Performance & Rhythm</h3>
 
-            <div className="flex gap-6">
-              {/* Song List - Left Side */}
+            <div className="flex flex-col md:flex-row gap-6">
+              {/* Song List - Second on mobile, Left on desktop */}
               <div
                 ref={listContainerRef}
-                className="w-[420px] shrink-0 flex flex-col gap-1 h-[500px] overflow-y-scroll pr-2 relative"
+                className="w-full md:w-[420px] shrink-0 flex flex-col gap-1 max-h-[400px] md:h-[500px] overflow-y-scroll pr-2 relative order-2 md:order-1"
               >
                 {workout.album.tracks.map((track) => {
                   const isActive = activeTrack?.trackNumber === track.trackNumber;
@@ -184,8 +184,8 @@ export default function WorkoutDetailClient({ workout }: WorkoutDetailClientProp
                 })}
               </div>
 
-              {/* Chart - Right Side */}
-              <div className="flex-1 min-w-0">
+              {/* Chart - First on mobile, Right on desktop */}
+              <div className="flex-1 min-w-0 order-1 md:order-2 min-h-[400px]">
                 <WorkoutChart
                   data={chartData}
                   tracks={workout.album.tracks}
