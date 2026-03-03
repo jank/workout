@@ -3,6 +3,7 @@ import path from 'path';
 import dotenv from 'dotenv';
 import { Readable } from 'stream';
 import { finished } from 'stream/promises';
+import { execSync } from 'child_process';
 import { parseTcx } from './tcx-parser';
 import { fetchAlbumData } from './music-fetcher';
 import type { GeneratedWorkout, WorkoutRegistryEntry, Track } from './lib/types';
@@ -318,6 +319,19 @@ async function main() {
   // Write output
   fs.writeFileSync(OUTPUT_FILE, JSON.stringify(enrichedWorkouts, null, 2));
   console.log(`\n=== Done! Generated ${enrichedWorkouts.length} workout(s) ===`);
+
+  // Git commit any changes in data/
+  console.log('\n[Git] Checking for changes in data/...');
+  const rootDir = path.join(__dirname, '..');
+  execSync('git add data/', { cwd: rootDir });
+  const status = execSync('git diff --cached --name-only', { cwd: rootDir, encoding: 'utf-8' }).trim();
+  if (status) {
+    console.log(`[Git] Committing:\n${status.split('\n').map(f => `  ${f}`).join('\n')}`);
+    execSync('git commit -m "new workouts"', { cwd: rootDir });
+    console.log('[Git] Committed.');
+  } else {
+    console.log('[Git] No changes to commit.');
+  }
 }
 
 main().catch(err => {
