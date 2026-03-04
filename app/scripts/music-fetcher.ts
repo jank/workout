@@ -312,15 +312,26 @@ async function fetchFromiTunes(
       };
     }
 
-    // Fetch tracks for the album
-    const tracksUrl = `https://itunes.apple.com/lookup?id=${targetCollectionId}&entity=song`;
-    const tracksRes = await fetch(tracksUrl);
-    const tracksJson = await tracksRes.json();
+    // Fetch tracks for the album, trying alternative regions if needed
+    const REGIONS = ['us', 'de', 'gb', 'se'];
+    let trackResults: iTunesTrackResult[] = [];
 
-    // First result is the collection itself, rest are tracks
-    const trackResults: iTunesTrackResult[] = tracksJson.results.filter(
-      (item: iTunesTrackResult) => item.wrapperType === 'track'
-    );
+    for (const region of REGIONS) {
+      const tracksUrl = `https://itunes.apple.com/lookup?id=${targetCollectionId}&entity=song&country=${region}`;
+      const tracksRes = await fetch(tracksUrl);
+      const tracksJson = await tracksRes.json();
+
+      trackResults = (tracksJson.results || []).filter(
+        (item: iTunesTrackResult) => item.wrapperType === 'track'
+      );
+
+      if (trackResults.length > 0) {
+        if (region !== 'us') {
+          console.log(`  Found tracks via ${region.toUpperCase()} store`);
+        }
+        break;
+      }
+    }
 
     // Map to Track interface with timeline (will be calculated in process-data.ts)
     const tracks: Track[] = trackResults
